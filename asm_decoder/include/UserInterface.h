@@ -2,12 +2,12 @@
 
 #include <iostream>
 #include <string>
+#include <filesystem>
+#include <fstream>
 
 class UserInterface {
     public:
-        const std::string PromptInFile();
-        const std::string PromptOutFile();
-        void DisplayResult(const std::string &result);
+        void DisplayFile(const std::filesystem::path filePath);
 
     private:
 
