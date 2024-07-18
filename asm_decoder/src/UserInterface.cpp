@@ -12,3 +12,7 @@ void UserInterface::DisplayFile(const std::filesystem::path filePath) {
     file.close();
     }
 }
+void UserInterface::DisplayDiffResult(const std::filesystem::path filePath, bool success) {
+    std::string result = success? "success" : "fail";
+    std::cout << "\n" << filePath.filename().string() << ": " << result << "\n";
+}

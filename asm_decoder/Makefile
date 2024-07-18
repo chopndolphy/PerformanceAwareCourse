@@ -57,5 +57,9 @@ clean:
 run: $(TARGETS)
 	./$(BUILD)/asm_decoder
 
+
+
 $(BUILD):
 	mkdir -p $(BUILD)
+	mkdir -p my_binaries
+	mkdir -p output

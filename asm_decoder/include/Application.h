@@ -17,4 +17,6 @@ class Application {
         UserInterface& userInterface;
 
         void writeASMFile(const std::string &outputASMFile, const std::string &assemblyCode);
+        std::filesystem::path compileASMFile(std::filesystem::path asmFile);
+        bool diffFiles(std::filesystem::path filename1, std::filesystem::path filename2);
 };
