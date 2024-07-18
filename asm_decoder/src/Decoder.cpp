@@ -29,18 +29,18 @@ const std::string Decoder::Decode(const std::string &asmBinaryInFile) {
             case 0b10100000:
                 if (*byte & 0b00000010) {
                     // accumulator to memory
-                    decodedAsmCodeString.append("\nmov ");
+                    decodedAsmCodeString.append(accuToMem(byte));
 
                 }
                 else {
                 // memory to accumulator
-                decodedAsmCodeString.append("\nmov ");
+                decodedAsmCodeString.append(memToAccu(byte));
 
                 }
                 break;
             case 0b11000000:
                 // immediate to register/memory
-                decodedAsmCodeString.append("\nmov ");
+                decodedAsmCodeString.append(immToRegMem(byte));
                 break;
             default:
                 decodedAsmCodeString.append("\nunsupported op code");
@@ -50,9 +50,57 @@ const std::string Decoder::Decode(const std::string &asmBinaryInFile) {
     }
     data.close();
     return decodedAsmCodeString;
-    // I got 1000 1001 1101 1001
 }
-const std::string Decoder::getRegName(uint8_t regCode, bool isWide) {
+const std::string Decoder::regMemToFromReg(std::vector<uint8_t>::iterator &byte) {
+    std::string line = "\nmov ";
+    bool destFirst = *byte & 0b00000010;
+    bool isWide = *byte & 0b00000001;
+    byte++;
+    uint8_t reg = (*byte & 0b00111000) >> 3;
+    std::string regName = getRegName(reg, isWide);
+    if (destFirst) {
+        line.append(getRegName(reg, isWide) + ", ");
+    }
+    line.append(getRegMemCode(byte, isWide));
+    if (!destFirst) {
+        line.append(", " + regName);
+    }
+    return line;
+}
+const std::string Decoder::immToRegMem(std::vector<uint8_t>::iterator &byte) {
+    std::string line = "\nmov ";
+    bool isWide = *byte & 0b00000001;
+    byte++;
+    line.append(getRegMemCode(byte, isWide) + ", ");
+    line.append(isWide? "word " : "byte ");
+    byte++;
+    line.append(getIntString(byte, isWide));
+    return line;
+}
+const std::string Decoder::immToReg(std::vector<uint8_t>::iterator &byte) {
+    std::string line = "\nmov ";
+    bool isWide = *byte & 0b00001000;
+    line.append(getRegName(*byte & 0b00000111, isWide) + ", ");
+    byte++;
+    line.append(getIntString(byte, isWide));
+    return line;
+}
+const std::string Decoder::memToAccu(std::vector<uint8_t>::iterator &byte) {
+    std::string line = "\nmov ax, [";
+    bool isWide = *byte & 0b00000001;
+    byte++;
+    line.append(getIntString(byte, isWide) + "]");
+    return line;
+}
+const std::string Decoder::accuToMem(std::vector<uint8_t>::iterator &byte) {
+    std::string line = "\nmov [";
+    bool isWide = *byte & 0b00000001;
+    byte++;
+    line.append(getIntString(byte, isWide) + "], ax");
+    return line;
+}
+const std::string Decoder::getRegName(uint8_t regCode, bool isWide)
+{
     std::string regName;
     switch (regCode) {
         case 0b000:
@@ -82,7 +130,7 @@ const std::string Decoder::getRegName(uint8_t regCode, bool isWide) {
         default:
             regName = "Invalid Reg Name";
     }
-    return regName;    
+    return regName;
 }
 const std::string Decoder::getIntString(std::vector<uint8_t>::iterator &byte, bool isWide) {
     int16_t data16 = 0;
@@ -97,56 +145,39 @@ const std::string Decoder::getIntString(std::vector<uint8_t>::iterator &byte, bo
         return std::to_string(data8);
     }
 }
-const std::string Decoder::immToReg(std::vector<uint8_t>::iterator &byte)
-{
-    std::string line = "\nmov ";
-    bool isWide = *byte & 0b00001000;
-    line.append(getRegName(*byte & 0b00000111, isWide) + ", ");
-    byte++;
-    line.append(getIntString(byte, isWide));
-    return line;
-}
-const std::string Decoder::regMemToFromReg(std::vector<uint8_t>::iterator &byte) {
-    std::string line = "\nmov ";
-    bool destFirst = *byte & 0b00000010;
-    bool isWide = *byte & 0b00000001;
-    byte++;
+const std::string Decoder::getRegMemCode(std::vector<uint8_t>::iterator &byte, bool isWide) {
+    std::string regMemCode;
     uint8_t mod = (*byte & 0b11000000) >> 6;
-    uint8_t reg = (*byte & 0b00111000) >> 3;
     uint8_t rm  = (*byte & 0b00000111);
-    std::string regName = getRegName(reg, isWide);
     std::string integer;
-    if (destFirst) {
-        line.append(getRegName(reg, isWide) + ", ");
-    }
     switch (mod) {
         case 0b00:
             switch (rm) {
                 case 0b000:
-                    line.append("[bx + si]");
+                    regMemCode.append("[bx + si]");
                     break;
                 case 0b001:
-                    line.append("[bx + di]");
+                    regMemCode.append("[bx + di]");
                     break;
                 case 0b010:
-                    line.append("[bp + si]");
+                    regMemCode.append("[bp + si]");
                     break;
                 case 0b011:
-                    line.append("[bp + di]");
+                    regMemCode.append("[bp + di]");
                     break;
                 case 0b100:
-                    line.append("[si]");
+                    regMemCode.append("[si]");
                     break;
                 case 0b101:
-                    line.append("[di]");
+                    regMemCode.append("[di]");
                     break;
                 case 0b110:
                     byte++;
                     integer = getIntString(byte, true);
-                    line.append("[" + integer + "]");
+                    regMemCode.append("[" + integer + "]");
                     break;
                 case 0b111:
-                    line.append("[bx]");
+                    regMemCode.append("[bx]");
                     break;
             }
             break;
@@ -162,28 +193,28 @@ const std::string Decoder::regMemToFromReg(std::vector<uint8_t>::iterator &byte)
             }
             switch (rm) {
                 case 0b000:
-                    line.append("[bx + si" + integer + "]");
+                    regMemCode.append("[bx + si" + integer + "]");
                     break;
                 case 0b001:
-                    line.append("[bx + di" + integer + "]");
+                    regMemCode.append("[bx + di" + integer + "]");
                     break;
                 case 0b010:
-                    line.append("[bp + si" + integer + "]");
+                    regMemCode.append("[bp + si" + integer + "]");
                     break;
                 case 0b011:
-                    line.append("[bp + di" + integer + "]");
+                    regMemCode.append("[bp + di" + integer + "]");
                     break;
                 case 0b100:
-                    line.append("[si" + integer + "]");
+                    regMemCode.append("[si" + integer + "]");
                     break;
                 case 0b101:
-                    line.append("[di" + integer + "]");
+                    regMemCode.append("[di" + integer + "]");
                     break;
                 case 0b110:
-                    line.append("[bp" + integer + "]");
+                    regMemCode.append("[bp" + integer + "]");
                     break;
                 case 0b111:
-                    line.append("[bx" + integer + "]");
+                    regMemCode.append("[bx" + integer + "]");
                     break;
             }
             break;
@@ -199,37 +230,34 @@ const std::string Decoder::regMemToFromReg(std::vector<uint8_t>::iterator &byte)
             }
             switch (rm) {
                 case 0b000:
-                    line.append("[bx + si" + integer + "]");
+                    regMemCode.append("[bx + si" + integer + "]");
                     break;
                 case 0b001:
-                    line.append("[bx + di" + integer + "]");
+                    regMemCode.append("[bx + di" + integer + "]");
                     break;
                 case 0b010:
-                    line.append("[bp + si" + integer + "]");
+                    regMemCode.append("[bp + si" + integer + "]");
                     break;
                 case 0b011:
-                    line.append("[bp + di" + integer + "]");
+                    regMemCode.append("[bp + di" + integer + "]");
                     break;
                 case 0b100:
-                    line.append("[si" + integer + "]");
+                    regMemCode.append("[si" + integer + "]");
                     break;
                 case 0b101:
-                    line.append("[di" + integer + "]");
+                    regMemCode.append("[di" + integer + "]");
                     break;
                 case 0b110:
-                    line.append("[bp" + integer + "]");
+                    regMemCode.append("[bp" + integer + "]");
                     break;
                 case 0b111:
-                    line.append("[bx" + integer + "]");
+                    regMemCode.append("[bx" + integer + "]");
                     break;
             }
             break;
         case 0b11:
-            line.append(getRegName(rm, isWide));
+            regMemCode.append(getRegName(rm, isWide));
             break;
     }
-    if (!destFirst) {
-        line.append(", " + regName);
-    }
-    return line;
+    return regMemCode;
 }
